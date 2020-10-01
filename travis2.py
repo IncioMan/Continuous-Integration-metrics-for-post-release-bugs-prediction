@@ -66,14 +66,14 @@ if __name__ == "__main1__":
             current_builds = []   
     print(n_builds)
 
-if __name__ == "__main__":
+if __name__ == "__main1__":
     import pickle
     with open('builds/v2/builds11995.pkl', 'rb') as f:
         builds = pickle.load(f)
         print(len(builds))
 
-if __name__ == "__main1__":
+if __name__ == "__main__":
     import pprint
     pp = pprint.PrettyPrinter(depth=6)
-    response = get_builds(params={"repository_id": "234484", "after_number": '11996'})
-    pp.pprint(len(response['builds']))
+    response = get_builds(params={"repository_id": "234484", "number": '112036'})
+    pp.pprint(response['builds'])

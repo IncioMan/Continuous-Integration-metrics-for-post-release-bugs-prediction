@@ -183,7 +183,7 @@ if __name__ == "__main2__":
     import pickle
     pp = pprint.PrettyPrinter(depth=6)
     current_builds = []
-    i = 0
+    i = 121
     n_builds = 0
     while True:
         response = get_builds("234484", {"offset": i*100, "limit": 100})
