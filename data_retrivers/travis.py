@@ -117,6 +117,13 @@ def get_job(job_id):
     if response.status_code == 200:
         return response.json()
 
+def get_job_log(job_id):
+    """ Returns jobs associated with build whose id is build_id """
+
+    response = _request(endpoint="job/{}/log".format(job_id))
+    if response.status_code == 200:
+        return response.json()
+
 def get_build(build_id):
     """ Returns jobs associated with build whose id is build_id """
 
@@ -177,9 +184,6 @@ def sync():
         if not user["is_syncing"]:
             return True
         sleep(1)
-
-if __name__ == "__main2__":
-    
 
 if __name__ == "__main1__":
     import pickle

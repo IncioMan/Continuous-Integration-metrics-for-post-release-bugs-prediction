@@ -8,7 +8,6 @@ NUMBER_BUILDS_TO_SKIP = 0
 DEST_FOLDER = "test"
 
 if __name__ == "__main__":
-    pass
     pp = pprint.PrettyPrinter(depth=6)
     current_builds = []
     i = NUMBER_BUILDS_TO_SKIP
