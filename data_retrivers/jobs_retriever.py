@@ -3,13 +3,12 @@ import pandas as pd
 import pickle
 from travis import get_jobs
 
-OFFSET = 25500
+OFFSET = 39000
 DEST_FOLDER = "jobs"
 BUILDS_CSV = "csv/allBuilds.csv"
 
 if __name__ == "__main__":
     allBuilds = pd.read_csv(BUILDS_CSV, index_col=0)
-
     pp = pprint.PrettyPrinter(depth=6)
     current_jobs = []
     i = 0
@@ -29,5 +28,8 @@ if __name__ == "__main__":
             print(f"Downloaded jobs: {i}...")
             with open(f'{DEST_FOLDER}/jobs{i}.pkl', 'wb') as f:
                 pickle.dump(current_jobs, f)
-            current_jobs = []  
+            current_jobs = []
+    print(f"Writing last jobs: {len(current_jobs)}...")
+    with open(f'{DEST_FOLDER}/jobs{i}.pkl', 'wb') as f:
+                pickle.dump(current_jobs, f)
     print(i)
