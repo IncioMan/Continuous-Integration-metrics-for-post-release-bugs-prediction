@@ -1,6 +1,7 @@
 .DS_Store
 builds/
 jobs/
+pull_requests/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
