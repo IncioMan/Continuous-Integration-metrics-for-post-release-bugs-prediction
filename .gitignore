@@ -2,6 +2,7 @@
 builds/
 jobs/
 pull_requests/
+*.githubtoken
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
