@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 pp = pprint.PrettyPrinter(depth=6)
 
 _BASE_URL = "https://api.github.com/"
+csv_folder = "csv"
 
 with open(".githubtoken", "r") as f:
     GITHUB_TOKEN = f.read()
@@ -37,6 +38,41 @@ def get_compare_tags(owner, repo, tag1, tag2):
     response = _request(endpoint=query)
     checkRateLimit(response)
     return response
+
+def get_commit(owner, repo, ref):
+    query = f"repos/{owner}/{repo}/commits/{ref}"
+    response = _request(endpoint=query)
+    checkRateLimit(response)
+    return response
+
+def get_commits_from(owner, repo, ref):
+    query = f"repos/{owner}/{repo}/commits?sha={ref}&per_page=250"
+    response = _request(endpoint=query)
+    checkRateLimit(response)
+    return response
+
+def get_commits_between(owner, repo, base, head, ahead_by, behind_by):
+    curr_base = base
+    #go behind by x commits from base
+    current_head = head
+    commits = []
+    remove_first = 0
+    while True:
+        response_compare = get_compare_tags(owner, repo, base, current_head)
+        new_commits = response_compare.json()["commits"]
+        commits = commits + new_commits
+        if len(new_commits) == int(response_compare.json()["ahead_by"]) + int(response_compare.json()["behind_by"]):
+            break
+        current_head = new_commits[-1]["sha"]
+    shas = [c["sha"] for c in commits]
+    for i, sha in enumerate(shas):
+        if curr_base in sha:
+            print(f"{curr_base}, {sha}, {i}")
+    base_retrieved = commits[ahead_by]["sha"]
+    if base_retrieved != curr_base:
+        print(f"!!! Base expected at {ahead_by} but was at {i}")
+        #raise Exception(f"Expected base {curr_base} and retrieved one {base_retrieved} do not match...")
+    return commits[0:ahead_by+1]
 
 def get_pull_request(owner, repo, pull_number):
     query = f"repos/{owner}/{repo}/pulls/{pull_number}"
@@ -207,6 +243,12 @@ if __name__ == "__main1__":
                 pickle.dump(comparisons, f)
                 comparisons = []
 
+#retrieve commits between tags
 if __name__ == "__main__":
-     response = get_compare_tags("SonarSource", "sonarqube", "0dc7f1ec", "87ca68d")
-     print(response)
+    tags_final = pd.read_csv(f"{csv_folder}/tags_comparison_final.csv", index_col=0)
+    for i, row in tags_final.iterrows():
+        if row.ahead_by > 249 and row.ahead_by < 500:
+            #response = get_commits_between("SonarSource", "sonarqube", "ca8c711", "2785860", 28, 0)
+            response = get_commits_between("SonarSource", "sonarqube", row.from_sha, row.to_sha, row.ahead_by, row.behind_by)
+            print(f"from {row.from_sha} to {row.to_sha}")
+            #break
