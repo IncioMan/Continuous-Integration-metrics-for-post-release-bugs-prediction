@@ -130,19 +130,25 @@ if __name__ == "__main2__":
     with open(f"pkl/compare_tags.pkl", "wb") as f:
         pickle.dump(comparisons, f)
 
-if __name__ == "__main__":
+if __name__ == "__main1__":
     import os.path
     from os import path
+    import datetime
+    import time
+
     tagsDf = pd.read_csv("csv/tags.csv", index_col=0)
+    tagsDf.Date = pd.to_datetime(tagsDf.Date)
+    tagsDf = tagsDf[tagsDf.Date > pd.to_datetime(datetime.date(2015,3,10))]
+
     BACKWARDS_TRIES = 10
-    FORWARD_TRIES = 5
+    FORWARD_TRIES = 10
     folder = "pkl/compare_tags"
 
     #Load file with already tried combinations
     already_tried_tags_versions = []
     tried_combinations = ""
     if path.exists(f"{folder}/compare_tags_combination_log.txt"):
-        with open(f"{folder}compare_tags_combination_log.txt", "r") as a_file:
+        with open(f"{folder}/compare_tags_combination_log.txt", "r") as a_file:
             for line in a_file:
                 stripped_line = line.strip()
                 tried_combinations = tried_combinations + stripped_line + "\n" 
@@ -150,7 +156,7 @@ if __name__ == "__main__":
 
     comparisons = []
     with ThreadPoolExecutor() as executor:
-        tags = list(tagsDf.sort_values(by=["Tag_number", "Date"]).Tag)
+        tags = list(tagsDf.sort_values(by=["Tag_number", "Date"]).Sha)
         futures = set()
         for i, head_tag in enumerate(tags):
             #Backwards
@@ -159,7 +165,7 @@ if __name__ == "__main__":
                 if f"{tags[j]}:{head_tag}" in already_tried_tags_versions:
                     continue
                 futures.add(executor.submit(get_compare_tags, "SonarSource", "sonarqube", tags[j], head_tag))  
-                print(f"Comparing {tags[j]} and {head_tag}...")
+                #print(f"Comparing {tags[j]} and {head_tag}...")
                 tried_combinations = tried_combinations + f"{tags[j]}:{head_tag}\n"
             #Forward
             end_index = len(tags) if i+FORWARD_TRIES > len(tags) else i+FORWARD_TRIES
@@ -169,13 +175,20 @@ if __name__ == "__main__":
                 if f"{tags[j]}:{head_tag}" in already_tried_tags_versions:
                     continue
                 futures.add(executor.submit(get_compare_tags, "SonarSource", "sonarqube", tags[j], head_tag))  
-                print(f"Comparing {tags[j]} and {head_tag}...")
+                #print(f"Comparing {tags[j]} and {head_tag}...")
                 tried_combinations = tried_combinations + f"{tags[j]}:{head_tag}\n"
             completed, futures = wait(futures, return_when=ALL_COMPLETED)
             for future in completed:
                 response = future.result()
                 if response.status_code != 200:
-                    print(f"Failed call with {response.status_code} code: {response.status_code}")
+                    if not "url" in response.json():
+                        pp.pprint(response.json())
+                        print(f"Failed call")
+                        continue
+                    else:
+                        url = response.json()["url"]
+                        print(f"Failed call with {response.status_code} code: {url}")
+                        continue
                 #empty commits
                 response = response.json()
                 response["commits"] = []
@@ -184,15 +197,16 @@ if __name__ == "__main__":
             
             if len(comparisons) == 0:
                 continue
-
+            
+            time.sleep(1)
             with open(f"{folder}/compare_tags_combination_log.txt", "a") as f:
                 f.write(tried_combinations)
                 tried_combinations = ""   
             print(f"Saving {len(comparisons)} comparisons...")
-            with open(f"{folder}/compare_tags/compare_tags_combination{i}.pkl", "wb") as f:
+            with open(f"{folder}/compare_tags_combination{i}.pkl", "wb") as f:
                 pickle.dump(comparisons, f)
                 comparisons = []
 
-if __name__ == "__main2__":
-     response = get_compare_tags("SonarSource", "sonarqube", "4.1.2", "4.2")
+if __name__ == "__main__":
+     response = get_compare_tags("SonarSource", "sonarqube", "0dc7f1ec", "87ca68d")
      print(response)

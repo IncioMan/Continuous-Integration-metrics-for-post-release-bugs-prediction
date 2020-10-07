@@ -3,6 +3,7 @@ builds/
 jobs/
 pull_requests/
 *.githubtoken
+pkl/compare_tags*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
