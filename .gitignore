@@ -1,6 +1,7 @@
 .DS_Store
 builds/
 jobs/
+szz/
 pull_requests/
 *.githubtoken
 pkl/compare_tags*
