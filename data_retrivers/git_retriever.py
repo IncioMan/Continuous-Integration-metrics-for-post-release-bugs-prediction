@@ -39,6 +39,19 @@ def get_compare_tags(owner, repo, tag1, tag2):
     checkRateLimit(response)
     return response
 
+def get_compare_tags_local(owner, repo, from_sha, to_sha, from_tag, to_tag):
+    behind_res = git.log("--pretty=oneline", f"{from_sha}...{to_sha}", "--left-only")
+    if behind_res == "":
+        behind_by =  0 
+    else:
+        behind_by = len(behind_res.split("\n"))
+    ahead_res = git.log("--pretty=oneline", f"{from_sha}...{to_sha}", "--right-only")
+    if ahead_res == "":
+        ahead_by =  0 
+    else:
+        ahead_by = len(ahead_res.split("\n"))
+    return ((from_tag, to_tag, ahead_by, behind_by, from_sha, to_sha))
+
 def get_commit(owner, repo, ref):
     query = f"repos/{owner}/{repo}/commits/{ref}"
     response = _request(endpoint=query)
@@ -166,6 +179,63 @@ if __name__ == "__main2__":
     with open(f"pkl/compare_tags.pkl", "wb") as f:
         pickle.dump(comparisons, f)
 
+#retrieve comparison using local git
+if __name__ == "__main__":
+    import os.path
+    from os import path
+    import datetime
+    import time
+    import git
+    git = git.Git("../sonarqube/") 
+
+    tagsDf = pd.read_csv("csv/tags_no_rc_and_milestones.csv", index_col=0)
+    tagsDf.Date = pd.to_datetime(tagsDf.Date)
+    tagsDf = tagsDf[tagsDf.Date > pd.to_datetime(datetime.date(2015,1,1))]
+
+    BACKWARDS_TRIES = 20
+    FORWARD_TRIES = 20
+    csv_folder = "csv"
+
+    comparisons = []
+    with ThreadPoolExecutor() as executor:
+        tags = list(tagsDf.sort_values(by=["Tag", "Date"]).Tag)
+        shas = list(tagsDf.sort_values(by=["Tag", "Date"]).Sha)
+        futures = set()
+        for i, head_sha in enumerate(shas):
+            print(f"Comparing {tags[i]}")
+            #Backwards
+            start_index = 0 if i-BACKWARDS_TRIES < 0 else i-BACKWARDS_TRIES
+            for j in range(start_index, i):
+                futures.add(executor.submit(get_compare_tags_local, "SonarSource", "sonarqube", shas[j], head_sha, tags[j], tags[i]))  
+            #Forward
+            end_index = len(shas) if i+FORWARD_TRIES > len(shas) else i+FORWARD_TRIES
+            if i == len(shas):
+                continue
+            for j in range(i+1, end_index):
+                futures.add(executor.submit(get_compare_tags_local, "SonarSource", "sonarqube", shas[j], head_sha, tags[j], tags[i]))  
+            completed, futures = wait(futures, return_when=ALL_COMPLETED)
+            for future in completed:
+                res_tuple = future.result()
+                comparisons.append(res_tuple)
+                #print(res_tuple)
+            futures = set()
+            
+            if len(comparisons) % 100 == 0:
+                print(f"Compared {len(comparisons)}")
+
+    pd.DataFrame(comparisons, columns=["from_tag", "to_tag", "ahead_by", "behind_by","from_sha", "to_sha"]).to_csv(f"{csv_folder}/comparisons_no_rc_and_milestones.csv")
+
+#retrieve commits between tags
+if __name__ == "__main1__":
+    tags_final = pd.read_csv(f"{csv_folder}/tags_comparison_final.csv", index_col=0)
+    for i, row in tags_final.iterrows():
+        if row.ahead_by > 249 and row.ahead_by < 500:
+            #response = get_commits_between("SonarSource", "sonarqube", "ca8c711", "2785860", 28, 0)
+            response = get_commits_between("SonarSource", "sonarqube", row.from_sha, row.to_sha, row.ahead_by, row.behind_by)
+            print(f"from {row.from_sha} to {row.to_sha}")
+            #break
+
+#retrieve comparison using github apis
 if __name__ == "__main1__":
     import os.path
     from os import path
@@ -174,7 +244,7 @@ if __name__ == "__main1__":
 
     tagsDf = pd.read_csv("csv/tags.csv", index_col=0)
     tagsDf.Date = pd.to_datetime(tagsDf.Date)
-    tagsDf = tagsDf[tagsDf.Date > pd.to_datetime(datetime.date(2015,3,10))]
+    tagsDf = tagsDf[tagsDf.Date > pd.to_datetime(datetime.date(2015,1,1))]
 
     BACKWARDS_TRIES = 10
     FORWARD_TRIES = 10
@@ -242,13 +312,3 @@ if __name__ == "__main1__":
             with open(f"{folder}/compare_tags_combination{i}.pkl", "wb") as f:
                 pickle.dump(comparisons, f)
                 comparisons = []
-
-#retrieve commits between tags
-if __name__ == "__main__":
-    tags_final = pd.read_csv(f"{csv_folder}/tags_comparison_final.csv", index_col=0)
-    for i, row in tags_final.iterrows():
-        if row.ahead_by > 249 and row.ahead_by < 500:
-            #response = get_commits_between("SonarSource", "sonarqube", "ca8c711", "2785860", 28, 0)
-            response = get_commits_between("SonarSource", "sonarqube", row.from_sha, row.to_sha, row.ahead_by, row.behind_by)
-            print(f"from {row.from_sha} to {row.to_sha}")
-            #break
