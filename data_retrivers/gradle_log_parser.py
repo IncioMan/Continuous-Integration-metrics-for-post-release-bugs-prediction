@@ -8,7 +8,7 @@ GRADLE_TEST_C_F_S = "(\d*) tests completed, (\d*) failed, (\d*) skipped"
 GRADLE_TEST_C_F = "(\d*) tests completed, (\d*) failed\n"
 GRADLE_TEST_TOT_C_F_S = "Total tests run:(\d+), Failures: (\d+), Skips: (\d+)"
 GRADLE_TEST_TOT_RESULTS_C_F_E_S = "Results:\\r\\n\[(.*)] \\r\\n\[(.*)] Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
-TEST_TASK_OUTCOME_REGEX = "Task :(.*):test (.*)"
+TASK_OUTCOME_REGEX = "Task :(.*) (.*)\\r\\n"
 
 def gradle_test_results(log):
     total_tests = 0
@@ -42,16 +42,16 @@ def gradle_test_results(log):
     return total_tests, test_passed, test_failed, test_skipped
 
 
-def gradle_metrics_extractor(log):
+def get_metrics(log):
     total, passed, failed, skipped = gradle_test_results(log)
-    allRes = re.findall(TEST_TASK_OUTCOME_REGEX, log)
+    allRes = re.findall(TASK_OUTCOME_REGEX, log)
     failed_tasks = []
     for test_task in allRes:
-        if(test_task == "FAILED"):
-            failed_tasks.append(test_task)
+        if(test_task[1] == "FAILED"):
+            failed_tasks.append(test_task[0])
     return total, passed, failed, skipped, failed_tasks
 
 if __name__ == "__main__":
     #dump_job_log(728138257)
     log = joblog(407956398)
-    gradle_metrics_extractor(log)
+    get_metrics(log)
