@@ -2,10 +2,22 @@
 from log_retriever import read_job_log, joblog
 import re
 
+"""org.sonar.server.plugins.ServerExtensionInstallerTest > fail_when_detecting_ldap_auth_plugin FAILED
+    java.lang.AssertionError: 
+    Expected: (an instance of org.sonar.api.utils.MessageException and exception with message a string containing "Plugins 'LDAP' are no longer compatible with SonarQube")
+         but: exception with message a string containing "Plugins 'LDAP' are no longer compatible with SonarQube" message was "Plugins 'LDAP' are no more compatible with SonarQube"
+    Stacktrace was: Plugins 'LDAP' are no more compatible with SonarQube
+
+3555 tests completed, 4 failed
+
+> Task :server:sonar-server-common:test FAILED
+
+FAILURE: Build failed with an exception."""
+
 
 #Regex
 GRADLE_TEST_C_F_S = "(\d*) tests completed, (\d*) failed, (\d*) skipped"
-GRADLE_TEST_C_F = "(\d*) tests completed, (\d*) failed\n"
+GRADLE_TEST_C_F = "(\d*) tests completed, (\d*) failed\\r\\n"
 GRADLE_TEST_TOT_C_F_S = "Total tests run:(\d+), Failures: (\d+), Skips: (\d+)"
 GRADLE_TEST_TOT_RESULTS_C_F_E_S = "Results:\\r\\n\[(.*)] \\r\\n\[(.*)] Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
 TASK_OUTCOME_REGEX = "Task :(.*) (.*)\\r\\n"
@@ -53,5 +65,5 @@ def get_metrics(log):
 
 if __name__ == "__main__":
     #dump_job_log(728138257)
-    log = joblog(407956398)
-    get_metrics(log)
+    log = joblog(599748886)
+    print(get_metrics(log))

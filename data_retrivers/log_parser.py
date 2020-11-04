@@ -24,11 +24,11 @@ CSV_FOLDER = "csv"
 JOBS_CSV = "csv/allJobs.csv"
 LIMIT = 200
 DEST_FOLDER = "../logs"
-JOB_LOG_METRICS_COLUMNS = ["job_id", "build_target","build_tool", "build_canceled_open_pr_on_branch"
-#, "errors", "warnings", "skipped_words", "lines", "words",\
-    #"exceptions", "error_classes", "build_canceled_open_pr_on_branch", "tests_total", "tests_passed", "tests_failed", "tests_skipped", "failed_tasks"
+JOB_LOG_METRICS_COLUMNS = ["job_id", "build_target","build_tool", "build_canceled_open_pr_on_branch"\
+, "errors", "failures", "problems", "warnings", "skipped_words", "lines", "words",\
+    "exceptions", "error_classes", "tests_total", "tests_passed", "tests_failed", "tests_skipped", "failed_tasks"
     ]
-JOB_LOG_METRICS_PATH = f"{CSV_FOLDER}/jobs_log_metrics.csv"
+JOB_LOG_METRICS_PATH = f"{CSV_FOLDER}/jobs_log_metrics_final.csv"
 ###
 
 def import_jobs():
@@ -48,53 +48,60 @@ def joblogmetric(job_id):
     total_tests, passed, failed, skipped, failed_tasks = 0, 0, 0, 0, []
     log = joblog(job_id)
     if(not log):
-        return (job_id, None, None)
-        #, None, None, None, None, None, None, None, None, None, None, None, None)
+        return (job_id, None, None, False, None, None, None, None, None, None, None, None, None, None, None, None)
     log_lower = log.lower()
     build_canceled_open_pr_on_branch = (PULL_REQUEST_OPEN_CANCELING_BUILD in log)
     warnings = log_lower.count("[warning]")
     errors = log_lower.count("[error]")
+    failures = log_lower.count("failure") + log_lower.count("failed")
+    problems = log_lower.count("problem")
     skipped_words = log_lower.count("skipped")
-    #exceptions = re.findall(EXCEPTION_REGEX, log)
-    #exceptions = list(map(lambda x: x[0], exceptions))
-    #error_classes = re.findall(ERRORS_CLASSES_REGEX, log)
-    #error_classes = list(map(lambda x: x[0], error_classes))
+    exceptions = re.findall(EXCEPTION_REGEX, log)
+    exceptions = list(map(lambda x: x[0], exceptions))
+    error_classes = re.findall(ERRORS_CLASSES_REGEX, log)
+    error_classes = list(map(lambda x: x[0], error_classes))
     #TODO test = get_test_metrics(log)
     lines = len(log.split("\n"))
     words = len(log.split())
     build_tool = []
     build_target = ""
     #Define the target
-    target = re.findall("TARGET=(.*)\\r", log)
+    target = re.findall("TARGET=([^\\n\\r]*)", log)
     if(len(target) > 0):
         build_target = target[0]
     #Define the build parser
     if((build_target == "WEB_TESTS") or (build_target == "WEB")):
         if(":server:sonar-web:yarn" in log_lower):
             build_tool.append( "gradle")
-            #total_tests, passed, failed, skipped, failed_tasks = maven_log_parser.get_metrics(log)
-        if(("yarn run" in log_lower) or ("yarn validate"in log_lower)):
+            total_tests, passed, failed, skipped, failed_tasks = maven_log_parser.get_metrics(log)
+        if(("yarn test" in log_lower) or ("yarn run" in log_lower) or ("yarn validate"in log_lower)):
             build_tool.append("yarn")
-            #total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
+            total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
             warnings = log_lower.count("warning")
         if("mocha" in log_lower):
             build_tool.append( "mocha")
+        if("node scripts/test.js" in log_lower):
+            build_tool.append("node")
+            total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
+        if("jest" in log_lower):
+            build_tool.append("jest")
+            if(not "yarn" in build_tool):
+                total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
     else:
     #f(build_target == "BUILD"):
         if("reactor summary" in log_lower):
             build_tool.append("maven")
-            #total_tests, passed, failed, skipped, failed_tasks = maven_log_parser.get_metrics(log)
+            total_tests, passed, failed, skipped, failed_tasks = maven_log_parser.get_metrics(log)
         elif(re.search("welcome to gradle", log_lower)):
             build_tool.append( "gradle")
-            #total_tests, passed, failed, skipped, failed_tasks = gradle_log_parser.get_metrics(log)
+            total_tests, passed, failed, skipped, failed_tasks = gradle_log_parser.get_metrics(log)
             if("yarn run" in log_lower):
                 build_tool.append("yarn")
-                #total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
+                total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
                 warnings = log_lower.count("warning")
-    return (job_id, build_target, build_tool, build_canceled_open_pr_on_branch
-    #, errors, warnings, skipped_words, lines, words,\
-         #exceptions, error_classes, build_canceled_open_pr_on_branch, \
-             #total_tests, passed, failed, skipped, failed_tasks
+    return (job_id, build_target, build_tool, build_canceled_open_pr_on_branch, errors, failures, problems, warnings, skipped_words, lines, words,\
+        exceptions, error_classes,\
+        total_tests, passed, failed, skipped, failed_tasks
              )
 
 if __name__ == "__main__":
@@ -104,9 +111,10 @@ if __name__ == "__main__":
     tot_count = 0
     with ThreadPoolExecutor() as executor:
         futures = set()
-        #jobs = jobs[jobs.created_at > pd.to_datetime("2018-11-30 00:00:00+00:00")]
+        #jobs = jobs[jobs.created_at < pd.to_datetime("2017-12-30 00:00:00+00:00")]
+        #random.seed(30)
         job_ids = jobs[~jobs.id.isin(jobs_log_metrics.job_id)].sort_values(by="id").id.unique()
-        for job_id in random.choices(job_ids, k=1000):
+        for job_id in job_ids:
             if len(futures) >= LIMIT:
                 completed, futures = wait(futures, return_when=FIRST_COMPLETED)
             futures.add(executor.submit(joblogmetric, job_id))
@@ -124,7 +132,5 @@ if __name__ == "__main__":
                 futures = set()
                 print(f"Sumbitted job logs: {i}...")
                 i = 0
-                time.sleep(1)
-            if(tot_count > 1000):
-                break
-    print("ciao")
+                time.sleep(5)
+    print("Done")
