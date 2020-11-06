@@ -85,7 +85,7 @@ def joblogmetric(job_id, log=None):
         passed += test_pass
         failed += fail
         skipped += skip
-    if("mocha" in log_lower):
+    if("mocha " in log_lower):
         build_tool.append( "mocha")
         tot, test_pass, fail, skip = mocha_log_parser.get_metrics(log)
         total_tests += tot
@@ -99,7 +99,7 @@ def joblogmetric(job_id, log=None):
         passed += test_pass
         failed += fail
         skipped += skip
-    if("jest" in log_lower):
+    if("jest " in log_lower):
         build_tool.append("jest")
         if(not "yarn" in build_tool):
             tot, test_pass, fail, skip = yarn_log_parser.get_metrics(log)
