@@ -8,7 +8,7 @@ import re
 import random
 import time
 from log_retriever import read_job_log, dump_job_log, joblog
-import gradle_log_parser, yarn_log_parser, maven_log_parser
+import gradle_log_parser, yarn_log_parser, maven_log_parser, grunt_log_parser, mocha_log_parser
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, ALL_COMPLETED
 pp = pprint.PrettyPrinter(depth=6)
 
@@ -25,7 +25,7 @@ JOBS_CSV = "csv/allJobs.csv"
 LIMIT = 200
 DEST_FOLDER = "../logs"
 JOB_LOG_METRICS_COLUMNS = ["job_id", "build_target","build_tool", "build_canceled_open_pr_on_branch"\
-, "errors", "failures", "problems", "warnings", "skipped_words", "lines", "words",\
+, "errors", "failures", "suspected_words", "warnings", "skipped_words", "lines", "words",\
     "exceptions", "error_classes", "tests_total", "tests_passed", "tests_failed", "tests_skipped", "failed_tasks"
     ]
 JOB_LOG_METRICS_PATH = f"{CSV_FOLDER}/jobs_log_metrics_final.csv"
@@ -44,17 +44,24 @@ def load_jobs_log_metrics():
     else:
         return pd.DataFrame([], columns=JOB_LOG_METRICS_COLUMNS)
 
-def joblogmetric(job_id):
+def count_suspected_words(log, log_lower):
+    return log_lower.count("illegal") + log_lower.count("unknown") +\
+         log_lower.count("cannot") + log_lower.count("problem") + \
+             log_lower.count("unable to") +\
+             len(re.findall("\/(.*).sh: line\ (\d*):", log))
+
+def joblogmetric(job_id, log=None):
     total_tests, passed, failed, skipped, failed_tasks = 0, 0, 0, 0, []
-    log = joblog(job_id)
     if(not log):
-        return (job_id, None, None, False, None, None, None, None, None, None, None, None, None, None, None, None)
+        log = joblog(job_id)
+    if(not log):
+        return (job_id, None, None, False, None, None, None, None, None, None, None, None, None, None, None, None, None, None)
     log_lower = log.lower()
     build_canceled_open_pr_on_branch = (PULL_REQUEST_OPEN_CANCELING_BUILD in log)
-    warnings = log_lower.count("[warning]")
-    errors = log_lower.count("[error]")
+    warnings = log_lower.count("warning")
+    errors = log_lower.count("error")
     failures = log_lower.count("failure") + log_lower.count("failed")
-    problems = log_lower.count("problem")
+    suspected_words = count_suspected_words(log, log_lower)
     skipped_words = log_lower.count("skipped")
     exceptions = re.findall(EXCEPTION_REGEX, log)
     exceptions = list(map(lambda x: x[0], exceptions))
@@ -70,40 +77,65 @@ def joblogmetric(job_id):
     if(len(target) > 0):
         build_target = target[0]
     #Define the build parser
-    if((build_target == "WEB_TESTS") or (build_target == "WEB")):
-        if(":server:sonar-web:yarn" in log_lower):
-            build_tool.append( "gradle")
-            total_tests, passed, failed, skipped, failed_tasks = maven_log_parser.get_metrics(log)
-        if(("yarn test" in log_lower) or ("yarn run" in log_lower) or ("yarn validate"in log_lower)):
-            build_tool.append("yarn")
-            total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
-            warnings = log_lower.count("warning")
-        if("mocha" in log_lower):
-            build_tool.append( "mocha")
-        if("node scripts/test.js" in log_lower):
-            build_tool.append("node")
-            total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
-        if("jest" in log_lower):
-            build_tool.append("jest")
-            if(not "yarn" in build_tool):
-                total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
-    else:
+    #if((build_target == "WEB_TESTS") or (build_target == "WEB")):
+    if(("yarn test" in log_lower) or ("yarn run" in log_lower) or ("yarn validate"in log_lower)):
+        build_tool.append("yarn")
+        tot, test_pass, fail, skip = yarn_log_parser.get_metrics(log)
+        total_tests += tot
+        passed += test_pass
+        failed += fail
+        skipped += skip
+    if("mocha" in log_lower):
+        build_tool.append( "mocha")
+        tot, test_pass, fail, skip = mocha_log_parser.get_metrics(log)
+        total_tests += tot
+        passed += test_pass
+        failed += fail
+        skipped += skip
+    if("node scripts/test.js" in log_lower):
+        build_tool.append("node")
+        tot, test_pass, fail, skip = yarn_log_parser.get_metrics(log)
+        total_tests += tot
+        passed += test_pass
+        failed += fail
+        skipped += skip
+    if("jest" in log_lower):
+        build_tool.append("jest")
+        if(not "yarn" in build_tool):
+            tot, test_pass, fail, skip = yarn_log_parser.get_metrics(log)
+            total_tests += tot
+            passed += test_pass
+            failed += fail
+            skipped += skip
+    if("grunt test" in log_lower):
+        build_tool.append("grunt")
+        tot, test_pass, fail, skip = grunt_log_parser.get_metrics(log)
+        total_tests += tot
+        passed += test_pass
+        failed += fail
+        skipped += skip
+    #else:
     #f(build_target == "BUILD"):
-        if("reactor summary" in log_lower):
-            build_tool.append("maven")
-            total_tests, passed, failed, skipped, failed_tasks = maven_log_parser.get_metrics(log)
-        elif(re.search("welcome to gradle", log_lower)):
-            build_tool.append( "gradle")
-            total_tests, passed, failed, skipped, failed_tasks = gradle_log_parser.get_metrics(log)
-            if("yarn run" in log_lower):
-                build_tool.append("yarn")
-                total_tests, passed, failed, skipped = yarn_log_parser.get_metrics(log)
-                warnings = log_lower.count("warning")
-    return (job_id, build_target, build_tool, build_canceled_open_pr_on_branch, errors, failures, problems, warnings, skipped_words, lines, words,\
+    if("reactor summary" in log_lower):
+        build_tool.append("maven")
+        tot, test_pass, fail, skip, failed_tasks = maven_log_parser.get_metrics(log)
+        total_tests += tot
+        passed += test_pass
+        failed += fail
+        skipped += skip
+    elif(("welcome to gradle" in log_lower) or (":server:sonar-web:yarn" in log_lower)):
+        build_tool.append( "gradle") 
+        tot, test_pass, fail, skip = gradle_log_parser.get_metrics(log)
+        total_tests += tot
+        passed += test_pass
+        failed += fail
+        skipped += skip
+    return (job_id, build_target, build_tool, build_canceled_open_pr_on_branch, errors, failures, \
+        suspected_words, warnings, skipped_words, lines, words,\
         exceptions, error_classes,\
         total_tests, passed, failed, skipped, failed_tasks
              )
-
+#Main to parse logs from Travis apis
 if __name__ == "__main__":
     jobs = import_jobs()
     jobs_log_metrics = load_jobs_log_metrics()
@@ -118,6 +150,42 @@ if __name__ == "__main__":
             if len(futures) >= LIMIT:
                 completed, futures = wait(futures, return_when=FIRST_COMPLETED)
             futures.add(executor.submit(joblogmetric, job_id))
+            i += 1
+            tot_count+=1
+            if(i == LIMIT):
+                completed, futures = wait(futures, return_when=ALL_COMPLETED)
+                tmp_data = []
+                for future in completed:
+                    response = future.result()
+                    tmp_data.append(response)
+                response_df = pd.DataFrame(tmp_data, columns = JOB_LOG_METRICS_COLUMNS)
+                jobs_log_metrics = jobs_log_metrics.append(response_df, ignore_index=True)
+                jobs_log_metrics.to_csv(JOB_LOG_METRICS_PATH)
+                futures = set()
+                print(f"Sumbitted job logs: {i}...")
+                i = 0
+                time.sleep(5)
+    print("Done")
+
+#Main to parse logs locally
+if __name__ == "__main2__":
+    jobs = import_jobs()
+    jobs_log_metrics = load_jobs_log_metrics()
+    log_files = glob.glob("logs/*.log")
+    i = 0
+    tot_count = 0
+    with ThreadPoolExecutor() as executor:
+        futures = set()
+        #jobs = jobs[jobs.created_at < pd.to_datetime("2017-12-30 00:00:00+00:00")]
+        #random.seed(30)
+        job_ids = list(map(lambda x: re.search("/(\d*)\.log", x)[1], log_files))
+        #= jobs[~jobs.id.isin(jobs_log_metrics.job_id)].sort_values(by="id").id.unique()
+        for job_id in job_ids:
+            if len(futures) >= LIMIT:
+                completed, futures = wait(futures, return_when=FIRST_COMPLETED)
+            with(open(f"logs/{job_id}.log", "r")) as f:
+                log = f.read()
+            futures.add(executor.submit(joblogmetric, job_id, log))
             i += 1
             tot_count+=1
             if(i == LIMIT):

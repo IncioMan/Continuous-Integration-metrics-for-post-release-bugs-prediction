@@ -33,23 +33,27 @@ def gradle_test_results(log):
         total_tests += int(res[2])
         test_failed += int(res[3]) + int(res[4])
         test_skipped += int(res[5])
+        test_passed += total_tests - test_failed - test_skipped
 
     allRes = re.findall(GRADLE_TEST_C_F, log)
     for res in allRes:
         total_tests += int(res[0])
         test_failed += int(res[1])
+        test_passed += total_tests - test_failed
 
     allRes = re.findall(GRADLE_TEST_C_F_S, log)
     for res in allRes:
         total_tests += int(res[0])
         test_failed += int(res[1]) 
         test_skipped += int(res[2])
+        test_passed += total_tests - test_failed - test_skipped
     
     allRes = re.findall(GRADLE_TEST_TOT_C_F_S, log)
     for res in allRes:
         total_tests += int(res[0])
         test_failed += int(res[1]) 
         test_skipped += int(res[2])
+        test_passed += total_tests - test_failed - test_skipped
     
     return total_tests, test_passed, test_failed, test_skipped
 
@@ -65,5 +69,5 @@ def get_metrics(log):
 
 if __name__ == "__main__":
     #dump_job_log(728138257)
-    log = joblog(599748886)
+    log = joblog(547362230)
     print(get_metrics(log))

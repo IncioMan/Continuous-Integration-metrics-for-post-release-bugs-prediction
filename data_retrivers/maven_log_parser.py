@@ -32,13 +32,6 @@ Tests run: 3, Failures: 0, Errors: 2, Skipped: 0"""
 
 
 #Regex
-GRADLE_TEST_C_F_S = "(\d*) tests completed, (\d*) failed, (\d*) skipped"
-GRADLE_TEST_C_F = "(\d*) tests completed, (\d*) failed\n"
-GRADLE_TEST_TOT_C_F_S = "Total tests run:(\d+), Failures: (\d+), Skips: (\d+)"
-GRADLE_TEST_TOT_RESULTS_C_F_E_S = "Results:\\r\\n\[(.*)] \\r\\n\[(.*)] Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
-MAVEN_TEST_TOT_RESULTS_C_F_E_S_2 = "Results :\\r\\n\\r\\nTests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
-MAVEN_TEST_TOT_RESULTS_C_F_E_S_FAILED_TEST = "Results :((.*\\r\\n){,10})Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
-TEST_TASK_OUTCOME_REGEX = "Task :(.*):test (.*)"
 CASPER_TESTS = "([a-zA-z0-0]+) (\d*)\ tests\ executed(.*) (\d*)\ passed, (\d*)\ failed,\ (\d*)\ dubious,\ (\d*)\ skipped"
 MAVEN_RESULTS_C_F_E_S = "Results(\ ){,1}:(((.*)\\n){,100})(.*)Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
 
@@ -67,14 +60,9 @@ def get_test_results(log):
 
 def get_metrics(log):
     total, passed, failed, skipped = get_test_results(log)
-    allRes = re.findall(TEST_TASK_OUTCOME_REGEX, log)
-    failed_tasks = []
-    for test_task in allRes:
-        if(test_task == "FAILED"):
-            failed_tasks.append(test_task)
-    return total, passed, failed, skipped, failed_tasks
+    return total, passed, failed, skipped, []
 
 if __name__ == "__main__":
     #dump_job_log(728138257)
-    log = joblog(407956398)
-    get_metrics(log)
+    log = joblog(272948913)
+    print(get_metrics(log))
