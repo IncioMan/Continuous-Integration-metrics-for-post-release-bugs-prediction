@@ -7,6 +7,7 @@ import glob
 import re
 import random
 import time
+import shutil
 from log_retriever import read_job_log, dump_job_log, joblog
 import gradle_log_parser, yarn_log_parser, maven_log_parser, grunt_log_parser, mocha_log_parser
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, ALL_COMPLETED
@@ -22,13 +23,16 @@ BUILD_FAILURE_WHAT_WENT_WRONG = "\* What went wrong:\\r\\nExecution failed for t
 OFFSET = 0
 CSV_FOLDER = "csv"
 JOBS_CSV = "csv/allJobs.csv"
-LIMIT = 200
+LIMIT = 100
 DEST_FOLDER = "../logs"
 JOB_LOG_METRICS_COLUMNS = ["job_id", "build_target","build_tool", "build_canceled_open_pr_on_branch"\
 , "errors", "failures", "suspected_words", "warnings", "skipped_words", "lines", "words",\
     "exceptions", "error_classes", "tests_total", "tests_passed", "tests_failed", "tests_skipped", "failed_tasks"
     ]
+LOCAL_WORKING_FOLDER = "local_log_parsing"
 JOB_LOG_METRICS_PATH = f"{CSV_FOLDER}/jobs_log_metrics_final.csv"
+JOB_LOG_METRICS_LOCAL_PARSING_PATH = f"{LOCAL_WORKING_FOLDER}/jobs_log_metrics_final.csv"
+tmp_folder_name = f"{LOCAL_WORKING_FOLDER}/tmp_logs_to_parse"
 ###
 
 def import_jobs():
@@ -37,9 +41,9 @@ def import_jobs():
         jobs[f"{datefield}"] = pd.to_datetime(jobs[f"{datefield}"])
     return jobs
 
-def load_jobs_log_metrics():
-    if(os.path.isfile(JOB_LOG_METRICS_PATH)):
-        jobs_log_metrics = pd.read_csv(JOB_LOG_METRICS_PATH, index_col=0)
+def load_jobs_log_metrics(path):
+    if(os.path.isfile(path)):
+        jobs_log_metrics = pd.read_csv(path, index_col=0)
         return jobs_log_metrics
     else:
         return pd.DataFrame([], columns=JOB_LOG_METRICS_COLUMNS)
@@ -135,22 +139,59 @@ def joblogmetric(job_id, log=None):
         exceptions, error_classes,\
         total_tests, passed, failed, skipped, failed_tasks
              )
-#Main to parse logs from Travis apis
-if __name__ == "__main__":
+
+def create_logs_folder():
+    if not os.path.exists(tmp_folder_name):
+        os.makedirs(tmp_folder_name)
+
+def get_analysed_zip_number():
+    if not os.path.exists(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt"):
+        return []
+    else:
+        numbers = []
+        with(open(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt", "r")) as f:
+            for num in f.read().split("\n"):
+                if num == '':
+                    continue
+                numbers.append(int(num))
+        return numbers
+
+def unzip_logs(zip_number):
+    #remove files from old unzipping and start fresh
+    for log_file in glob.iglob(os.path.join(tmp_folder_name, '*.log')):
+        os.remove(log_file)
+    shutil.unpack_archive(f"logs/test/logs{zip_number}.zip", tmp_folder_name, "zip")
+
+def get_all_zip_number():
+    zipfiles = glob.glob(f"logs/test/*.zip")
+    zipfiles = [fil for fil in zipfiles if not "_old" in fil]
+    numbers = list(map(lambda x: int(re.search("/logs(\d*)\.zip", x)[1]), zipfiles))
+    return numbers
+
+def zip_file_analysed(zip_number):
+    if not os.path.exists(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt"):
+        with(open(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt", "w")) as f:
+            f.write(f"{zip_number}\n")
+    else:
+        with(open(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt", "a")) as f:
+            f.write(f"{zip_number}\n")
+
+"""#Main to parse logs from Travis apis
+if __name__ == "__main1__":
     jobs = import_jobs()
     jobs_log_metrics = load_jobs_log_metrics()
     i = 0
     tot_count = 0
     with ThreadPoolExecutor() as executor:
         futures = set()
-        #jobs = jobs[jobs.created_at < pd.to_datetime("2017-12-30 00:00:00+00:00")]
-        #random.seed(30)
+        
         job_ids = jobs[~jobs.id.isin(jobs_log_metrics.job_id)].sort_values(by="id").id.unique()
         for job_id in job_ids:
             if len(futures) >= LIMIT:
                 completed, futures = wait(futures, return_when=FIRST_COMPLETED)
             futures.add(executor.submit(joblogmetric, job_id))
             i += 1
+            print("sumbitted", job_id)
             tot_count+=1
             if(i == LIMIT):
                 completed, futures = wait(futures, return_when=ALL_COMPLETED)
@@ -165,29 +206,19 @@ if __name__ == "__main__":
                 print(f"Sumbitted job logs: {i}...")
                 i = 0
                 time.sleep(5)
-    print("Done")
+    print("Done")"""
 
-#Main to parse logs locally
-if __name__ == "__main2__":
-    jobs = import_jobs()
-    jobs_log_metrics = load_jobs_log_metrics()
-    log_files = glob.glob("logs/*.log")
+def parallel_parsing(job_ids, jobs_log_metrics, logs_folder):
     i = 0
-    tot_count = 0
     with ThreadPoolExecutor() as executor:
         futures = set()
-        #jobs = jobs[jobs.created_at < pd.to_datetime("2017-12-30 00:00:00+00:00")]
-        #random.seed(30)
-        job_ids = list(map(lambda x: re.search("/(\d*)\.log", x)[1], log_files))
-        #= jobs[~jobs.id.isin(jobs_log_metrics.job_id)].sort_values(by="id").id.unique()
         for job_id in job_ids:
             if len(futures) >= LIMIT:
                 completed, futures = wait(futures, return_when=FIRST_COMPLETED)
-            with(open(f"logs/{job_id}.log", "r")) as f:
+            with(open(f"{logs_folder}/{job_id}.log", "r")) as f:
                 log = f.read()
             futures.add(executor.submit(joblogmetric, job_id, log))
             i += 1
-            tot_count+=1
             if(i == LIMIT):
                 completed, futures = wait(futures, return_when=ALL_COMPLETED)
                 tmp_data = []
@@ -196,9 +227,50 @@ if __name__ == "__main2__":
                     tmp_data.append(response)
                 response_df = pd.DataFrame(tmp_data, columns = JOB_LOG_METRICS_COLUMNS)
                 jobs_log_metrics = jobs_log_metrics.append(response_df, ignore_index=True)
-                jobs_log_metrics.to_csv(JOB_LOG_METRICS_PATH)
                 futures = set()
                 print(f"Sumbitted job logs: {i}...")
                 i = 0
-                time.sleep(5)
-    print("Done")
+    return jobs_log_metrics
+
+def serial_parsing(job_ids, jobs_log_metrics, logs_folder):
+    i = 0
+    tmp_data = []
+    for job_id in job_ids:
+        with(open(f"{logs_folder}/{job_id}.log", "r")) as f:
+            log = f.read()
+            response = joblogmetric(job_id, log)
+            tmp_data.append(response)
+            i += 1
+        if(i == LIMIT):
+            response_df = pd.DataFrame(tmp_data, columns = JOB_LOG_METRICS_COLUMNS)
+            jobs_log_metrics = jobs_log_metrics.append(response_df, ignore_index=True)
+            print(f"Sumbitted job logs: {i}...")
+            i = 0
+            tmp_data = []
+    return jobs_log_metrics
+
+#Main to parse logs locally
+if __name__ == "__main__":
+    jobs = import_jobs()
+    jobs_log_metrics = load_jobs_log_metrics(JOB_LOG_METRICS_PATH)
+    create_logs_folder()
+    zip_numbers = get_all_zip_number()
+    analysed_zip_numbers = get_analysed_zip_number()
+    missing_zip_numbers = list(set(zip_numbers).difference(set(analysed_zip_numbers)))
+    for zip_number in missing_zip_numbers:
+        print("Analysing zip file", zip_number)
+        unzip_logs(zip_number)
+        log_files = glob.glob(f"{tmp_folder_name}/*.log")
+        job_ids = list(map(lambda x: re.search("/(\d*)\.log", x)[1], log_files))
+        #process only logs which have not been parsed before
+        job_ids = set(job_ids).difference(set(jobs_log_metrics.job_id))
+        #
+        parallel_parsing(job_ids, jobs_log_metrics, tmp_folder_name)
+        #
+        zip_file_analysed(zip_number)
+        print("Done analysing zip file", zip_number)
+        for log_id in job_ids:
+                os.remove(f"{tmp_folder_name}/{log_id}.log")
+        print("Removed log files")
+        jobs_log_metrics.to_csv(JOB_LOG_METRICS_LOCAL_PARSING_PATH)
+        print("Saved parsing results..")
