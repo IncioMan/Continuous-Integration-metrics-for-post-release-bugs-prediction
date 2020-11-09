@@ -89,7 +89,7 @@ def zip_and_delete(n_folder, dest_folder):
     if not os.path.exists(f"{dest_folder}/logs{n_folder}"):
         os.makedirs(f"{dest_folder}/logs{n_folder}")
 
-if __name__ == "__main__":
+if __name__ == "__main1__":
     retrievedIds = get_retrieved_logs()
     n_folder = get_n_folder() + 1
     if not os.path.exists(f"{DEST_FOLDER}/logs{n_folder}"):
@@ -158,16 +158,25 @@ if __name__ == "__main1__":
     log_ids_retrieved(log_ids)
 
 #utils to recover retrieved job_ids from a zip folder
-if __name__ == "__main1__":
+if __name__ == "__main_1_":
     retrieved_job_ids = get_retrieved_logs()
     zip_numbers = get_all_zip_number()
+    #zip_numbers = set(zip_numbers).difference({8,23,22,20,21,19,17,18,16,15,14,3,4,5,6,7,11,12})
     for zip_n in zip_numbers:
         print(f"Unique logs so far {len(retrieved_job_ids)}...")
+        print(f"Unzipping logs from zip {zip_n}...")
         path_to_folder = unzip_logs(zip_n)
         new_ids = remove_duplicates(path_to_folder, retrieved_job_ids)
         retrieved_job_ids = retrieved_job_ids + new_ids
         log_ids_retrieved(new_ids)
-        print(f"Zipping the unique logs from zip {zip_n}...")
-        zip_files(path_to_folder, f"{DEST_FOLDER}/new{zip_n}")
+        #print(f"Zipping the unique logs from zip {zip_n}...")
+        #zip_files(path_to_folder, f"{DEST_FOLDER}/new{zip_n}")
         print(f"Removing unzipped logs from zip {zip_n}...")
         shutil.rmtree(path_to_folder)
+
+
+if __name__ == "__main__":
+    retrievedIds = get_retrieved_logs()
+    jobsDf = pd.read_csv(JOBS_CSV, index_col=0)
+    jobs_left = jobsDf[~jobsDf.id.isin(retrievedIds)].sort_values(by="id").id.unique()
+    print(len(jobs_left))

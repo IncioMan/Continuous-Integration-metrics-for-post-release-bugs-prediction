@@ -90,7 +90,7 @@ def zip_and_delete(n_folder, dest_folder):
     if not os.path.exists(f"{dest_folder}/logs{n_folder}"):
         os.makedirs(f"{dest_folder}/logs{n_folder}")
 
-def parallel_retrieve(job_ids, write_to_file, n_folder=0):
+def multithread_fetching(job_ids, write_to_file, n_folder=0):
     retrieved_ids = []
     i = 0
     with ThreadPoolExecutor() as executor:
@@ -111,7 +111,7 @@ def parallel_retrieve(job_ids, write_to_file, n_folder=0):
                         retrieved_ids.append(job_id_retrieved)
     return retrieved_ids
 
-def sequential_retrieve(job_ids, write_to_file, n_folder=0):
+def singlethread_fetching(job_ids, write_to_file, n_folder=0):
     retrieved_ids = []
     i = 0
     for i, job_id in enumerate(job_ids):
@@ -150,7 +150,7 @@ if __name__ == "__main__":
         if(len(job_ids_batch) < BATCH_SIZE):
             job_ids_batch.append(job_id)
             continue
-        batch_retrieved_ids = batch_retrieved_ids + parallel_retrieve(job_ids_batch, True, n_folder)
+        batch_retrieved_ids = batch_retrieved_ids + multithread_fetching(job_ids_batch, True, n_folder)
         job_ids_batch = []
         time.sleep(0.5)
         #Logging progress

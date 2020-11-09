@@ -7,10 +7,12 @@ import glob
 import re
 import random
 import time
+import concurrent.futures
 import shutil
+from multiprocessing import Lock, Process, Queue, current_process, cpu_count
+import queue
 from log_retriever import read_job_log, dump_job_log, joblog
 import gradle_log_parser, yarn_log_parser, maven_log_parser, grunt_log_parser, mocha_log_parser
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, ALL_COMPLETED
 pp = pprint.PrettyPrinter(depth=6)
 
 #Regex
@@ -208,51 +210,92 @@ if __name__ == "__main1__":
                 time.sleep(5)
     print("Done")"""
 
-def parallel_parsing(job_ids, jobs_log_metrics, logs_folder):
+"""def multithread_parsing(job_ids, jobs_log_metrics, logs_folder, parallel_limit):
     i = 0
-    with ThreadPoolExecutor() as executor:
+    tmp_data = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
         futures = set()
         for job_id in job_ids:
-            if len(futures) >= LIMIT:
-                completed, futures = wait(futures, return_when=FIRST_COMPLETED)
             with(open(f"{logs_folder}/{job_id}.log", "r")) as f:
                 log = f.read()
-            futures.add(executor.submit(joblogmetric, job_id, log))
-            i += 1
-            if(i == LIMIT):
-                completed, futures = wait(futures, return_when=ALL_COMPLETED)
-                tmp_data = []
-                for future in completed:
-                    response = future.result()
-                    tmp_data.append(response)
-                response_df = pd.DataFrame(tmp_data, columns = JOB_LOG_METRICS_COLUMNS)
-                jobs_log_metrics = jobs_log_metrics.append(response_df, ignore_index=True)
-                futures = set()
-                print(f"Sumbitted job logs: {i}...")
-                i = 0
-    return jobs_log_metrics
+                futures.add(executor.submit(joblogmetric, job_id, log)) 
+        for future in concurrent.futures.as_completed(futures):
+            response = future.result()
+            tmp_data.append(response)
+        response_df = pd.DataFrame(tmp_data, columns = JOB_LOG_METRICS_COLUMNS)
+        jobs_log_metrics = jobs_log_metrics.append(response_df, ignore_index=True)
+        print(f"Sumbitted job logs: {len(job_ids)}...")
+    return jobs_log_metrics"""
 
-def serial_parsing(job_ids, jobs_log_metrics, logs_folder):
-    i = 0
+def parse_log(queue_job_ids, queue_job_results, logs_folder):
+    while True:
+        try:
+            '''
+                try to get task from the queue. get_nowait() function will 
+                raise queue.Empty exception if the queue is empty. 
+                queue(False) function would do the same task also.
+            '''
+            job_id = queue_job_ids.get_nowait()
+        except queue.Empty:
+            break
+        else:
+            '''
+                if no exception has been raised, add the task completion 
+                message to task_that_are_done queue
+            '''
+            i = 0
+            with(open(f"{logs_folder}/{job_id}.log", "r")) as f:
+                log = f.read()
+            results = joblogmetric(job_id, log)
+            queue_job_results.put(results)
+
+def multiprocess_parsing(job_ids, logs_folder, log_progress=False):
+    number_of_task = 10
+    number_of_processes = int(cpu_count())
+    queue_job_ids = Queue()
+    queue_job_results = Queue()
+    processes = []
+
+    for i in job_ids:
+        queue_job_ids.put(i)
+
+    # creating processes
+    for w in range(number_of_processes):
+        p = Process(target=parse_log, args=(queue_job_ids, queue_job_results, logs_folder))
+        processes.append(p)
+        p.start()
+
+    # completing process
+    for p in processes:
+        p.join(100)
+
+    # print the output
+    results = []
+    while not queue_job_results.empty():
+        results.append(queue_job_results.get())
+    if log_progress:
+        print(f"Parsed logs for {len(job_ids)} jobs...")
+    return results
+
+def singleprocess_parsing(job_ids, jobs_log_metrics, logs_folder, log_progress=False):
     tmp_data = []
     for job_id in job_ids:
         with(open(f"{logs_folder}/{job_id}.log", "r")) as f:
             log = f.read()
             response = joblogmetric(job_id, log)
             tmp_data.append(response)
-            i += 1
-        if(i == LIMIT):
-            response_df = pd.DataFrame(tmp_data, columns = JOB_LOG_METRICS_COLUMNS)
-            jobs_log_metrics = jobs_log_metrics.append(response_df, ignore_index=True)
-            print(f"Sumbitted job logs: {i}...")
-            i = 0
-            tmp_data = []
-    return jobs_log_metrics
+    if log_progress:
+        print(f"Parsed logs for {len(job_ids)} jobs...")
+    return tmp_data
+def divide_chunks(l, n): 
+    # looping till length l 
+    for i in range(0, len(l), n):  
+        yield l[i:i + n] 
 
 #Main to parse logs locally
 if __name__ == "__main__":
     jobs = import_jobs()
-    jobs_log_metrics = load_jobs_log_metrics(JOB_LOG_METRICS_PATH)
+    jobs_log_metrics = load_jobs_log_metrics(JOB_LOG_METRICS_LOCAL_PARSING_PATH)
     create_logs_folder()
     zip_numbers = get_all_zip_number()
     analysed_zip_numbers = get_analysed_zip_number()
@@ -261,16 +304,28 @@ if __name__ == "__main__":
         print("Analysing zip file", zip_number)
         unzip_logs(zip_number)
         log_files = glob.glob(f"{tmp_folder_name}/*.log")
-        job_ids = list(map(lambda x: re.search("/(\d*)\.log", x)[1], log_files))
+        job_ids = list(map(lambda x: int(re.search("/(\d*)\.log", x)[1]), log_files))
         #process only logs which have not been parsed before
-        job_ids = set(job_ids).difference(set(jobs_log_metrics.job_id))
+        job_ids = list(set(job_ids).difference(set(jobs_log_metrics.job_id)))
+        print(f"Logs to parse in this zip folder {len(job_ids)}...")
+        print(f"Logs left to parse {len(set(jobs.id).difference(jobs_log_metrics.job_id))}...")
+        #divide in batches of N jobs
+        job_batches = list(divide_chunks(job_ids, 100)) 
         #
-        parallel_parsing(job_ids, jobs_log_metrics, tmp_folder_name)
+        analysed_from_zip = 0
+        for i, batch in enumerate(job_batches):
+            print(f"Processing batch {i} of zip {zip_number}, analyzed from zip {analysed_from_zip}")
+            results = multiprocess_parsing(batch, tmp_folder_name)
+            new_parsed_metrics = pd.DataFrame(results, columns = JOB_LOG_METRICS_COLUMNS)
+            analysed_from_zip += len(new_parsed_metrics)
+            jobs_log_metrics = jobs_log_metrics.append(new_parsed_metrics, ignore_index=True)
+            jobs_log_metrics.to_csv(JOB_LOG_METRICS_LOCAL_PARSING_PATH)
         #
+        #jobs_log_metrics.to_csv(JOB_LOG_METRICS_LOCAL_PARSING_PATH)
+        print("Saved parsing results..")
         zip_file_analysed(zip_number)
         print("Done analysing zip file", zip_number)
         for log_id in job_ids:
                 os.remove(f"{tmp_folder_name}/{log_id}.log")
         print("Removed log files")
-        jobs_log_metrics.to_csv(JOB_LOG_METRICS_LOCAL_PARSING_PATH)
-        print("Saved parsing results..")
+    
