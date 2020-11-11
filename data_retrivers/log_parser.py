@@ -9,8 +9,11 @@ import random
 import time
 import concurrent.futures
 import shutil
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED, ALL_COMPLETED
 from multiprocessing import Lock, Process, Queue, current_process, cpu_count
+
 import queue
+import sys
 from log_retriever import read_job_log, dump_job_log, joblog
 import gradle_log_parser, yarn_log_parser, maven_log_parser, grunt_log_parser, mocha_log_parser
 pp = pprint.PrettyPrinter(depth=6)
@@ -122,7 +125,7 @@ def joblogmetric(job_id, log=None):
         skipped += skip
     #else:
     #f(build_target == "BUILD"):
-    if("reactor summary" in log_lower):
+    if(("reactor summary" in log_lower) or ("reactor build order" in log_lower)):
         build_tool.append("maven")
         tot, test_pass, fail, skip, failed_tasks = maven_log_parser.get_metrics(log)
         total_tests += tot
@@ -131,7 +134,7 @@ def joblogmetric(job_id, log=None):
         skipped += skip
     elif(("welcome to gradle" in log_lower) or (":server:sonar-web:yarn" in log_lower)):
         build_tool.append( "gradle") 
-        tot, test_pass, fail, skip = gradle_log_parser.get_metrics(log)
+        tot, test_pass, fail, skip, failed_tasks = gradle_log_parser.get_metrics(log)
         total_tests += tot
         passed += test_pass
         failed += fail
@@ -142,58 +145,54 @@ def joblogmetric(job_id, log=None):
         total_tests, passed, failed, skipped, failed_tasks
              )
 
-def create_logs_folder():
-    if not os.path.exists(tmp_folder_name):
-        os.makedirs(tmp_folder_name)
+def create_logs_folder(working_dir):
+    if not os.path.exists(f"{working_dir}/tmp_logs_to_parse"):
+        os.makedirs(f"{working_dir}/tmp_logs_to_parse")
+    return f"{working_dir}/tmp_logs_to_parse"
 
-def get_analysed_zip_number():
-    if not os.path.exists(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt"):
+def get_analysed_zip_number(zip_folder):
+    if not os.path.exists(f"{zip_folder}/analysed_zip_numbers.txt"):
         return []
     else:
         numbers = []
-        with(open(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt", "r")) as f:
+        with(open(f"{zip_folder}/analysed_zip_numbers.txt", "r")) as f:
             for num in f.read().split("\n"):
                 if num == '':
                     continue
                 numbers.append(int(num))
         return numbers
 
-def unzip_logs(zip_number):
+def unzip_logs(zip_number, zip_folder, dest_folder):
     #remove files from old unzipping and start fresh
-    for log_file in glob.iglob(os.path.join(tmp_folder_name, '*.log')):
+    for log_file in glob.iglob(os.path.join(dest_folder, '*.log')):
         os.remove(log_file)
-    shutil.unpack_archive(f"logs/test/logs{zip_number}.zip", tmp_folder_name, "zip")
+    shutil.unpack_archive(f"{zip_folder}/logs{zip_number}.zip", dest_folder, "zip")
 
-def get_all_zip_number():
-    zipfiles = glob.glob(f"logs/test/*.zip")
+def get_all_zip_number(folder):
+    zipfiles = glob.glob(f"{folder}/*.zip")
     zipfiles = [fil for fil in zipfiles if not "_old" in fil]
     numbers = list(map(lambda x: int(re.search("/logs(\d*)\.zip", x)[1]), zipfiles))
     return numbers
 
-def zip_file_analysed(zip_number):
-    if not os.path.exists(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt"):
-        with(open(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt", "w")) as f:
+def zip_file_analysed(zip_number, working_dir):
+    if not os.path.exists(f"{working_dir}/analysed_zip_numbers.txt"):
+        with(open(f"{working_dir}/analysed_zip_numbers.txt", "w")) as f:
             f.write(f"{zip_number}\n")
     else:
-        with(open(f"{LOCAL_WORKING_FOLDER}/analysed_zip_numbers.txt", "a")) as f:
+        with(open(f"{working_dir}/analysed_zip_numbers.txt", "a")) as f:
             f.write(f"{zip_number}\n")
 
-"""#Main to parse logs from Travis apis
-if __name__ == "__main1__":
-    jobs = import_jobs()
-    jobs_log_metrics = load_jobs_log_metrics()
+#Main to parse logs from Travis apis
+def parse_logs_from_travis_server(job_ids_to_parse, path_to_csv_results):
+    jobs_log_metrics = load_jobs_log_metrics(path_to_csv_results)
     i = 0
     tot_count = 0
     with ThreadPoolExecutor() as executor:
-        futures = set()
-        
-        job_ids = jobs[~jobs.id.isin(jobs_log_metrics.job_id)].sort_values(by="id").id.unique()
+        futures = set() 
+        job_ids = list(set(job_ids_to_parse).difference(set(jobs.id.unique())))
         for job_id in job_ids:
-            if len(futures) >= LIMIT:
-                completed, futures = wait(futures, return_when=FIRST_COMPLETED)
             futures.add(executor.submit(joblogmetric, job_id))
             i += 1
-            print("sumbitted", job_id)
             tot_count+=1
             if(i == LIMIT):
                 completed, futures = wait(futures, return_when=ALL_COMPLETED)
@@ -203,12 +202,12 @@ if __name__ == "__main1__":
                     tmp_data.append(response)
                 response_df = pd.DataFrame(tmp_data, columns = JOB_LOG_METRICS_COLUMNS)
                 jobs_log_metrics = jobs_log_metrics.append(response_df, ignore_index=True)
-                jobs_log_metrics.to_csv(JOB_LOG_METRICS_PATH)
                 futures = set()
                 print(f"Sumbitted job logs: {i}...")
                 i = 0
                 time.sleep(5)
-    print("Done")"""
+    jobs_log_metrics.to_csv(path_to_csv_results)
+    print("Done")
 
 """def multithread_parsing(job_ids, jobs_log_metrics, logs_folder, parallel_limit):
     i = 0
@@ -292,40 +291,85 @@ def divide_chunks(l, n):
     for i in range(0, len(l), n):  
         yield l[i:i + n] 
 
-#Main to parse logs locally
-if __name__ == "__main__":
-    jobs = import_jobs()
-    jobs_log_metrics = load_jobs_log_metrics(JOB_LOG_METRICS_LOCAL_PARSING_PATH)
-    create_logs_folder()
-    zip_numbers = get_all_zip_number()
-    analysed_zip_numbers = get_analysed_zip_number()
+"""if __name__ == "__main1__":
+    jobs_log_metrics = pd.read_csv(JOB_LOG_METRICS_LOCAL_PARSING_PATH, index_col=0)
+    print(len(jobs_log_metrics))
+    jobs_log_metrics_copy = pd.read_csv(f"{LOCAL_WORKING_FOLDER}/jobs_log_metrics_final_copy.csv", index_col=0)
+    print(len(jobs_log_metrics_copy))
+    jobs_log_metrics = jobs_log_metrics.append(jobs_log_metrics_copy, ignore_index=True)
+    print(len(jobs_log_metrics.drop_duplicates()))
+    jobs_log_metrics.drop_duplicates().to_csv(JOB_LOG_METRICS_LOCAL_PARSING_PATH)"""
+
+def parse_logs_from_local_zips(job_ids_to_parse, zip_folder, path_to_csv_results):
+    print(f"Results will be available in {path_to_csv_results}")
+    jobs_log_metrics = load_jobs_log_metrics(path_to_csv_results)
+    dir_with_logs = create_logs_folder(zip_folder)
+    zip_numbers = get_all_zip_number(zip_folder)
+    analysed_zip_numbers = get_analysed_zip_number(zip_folder)
     missing_zip_numbers = list(set(zip_numbers).difference(set(analysed_zip_numbers)))
     for zip_number in missing_zip_numbers:
         print("Analysing zip file", zip_number)
-        unzip_logs(zip_number)
-        log_files = glob.glob(f"{tmp_folder_name}/*.log")
+        unzip_logs(zip_number, zip_folder, dir_with_logs)
+        log_files = glob.glob(f"{dir_with_logs}/*.log")
         job_ids = list(map(lambda x: int(re.search("/(\d*)\.log", x)[1]), log_files))
-        #process only logs which have not been parsed before
-        job_ids = list(set(job_ids).difference(set(jobs_log_metrics.job_id)))
+        print(f"Logs in this zip folder {len(job_ids)}...")
+        #process only logs which have not been parsed before and are in list to parse
+        job_ids = list(set(job_ids).difference(set(jobs_log_metrics.job_id)).intersection(job_ids_to_parse))
         print(f"Logs to parse in this zip folder {len(job_ids)}...")
-        print(f"Logs left to parse {len(set(jobs.id).difference(jobs_log_metrics.job_id))}...")
+        print(f"Logs left to parse {len(set(job_ids_to_parse).difference(jobs_log_metrics.job_id))}...")
         #divide in batches of N jobs
         job_batches = list(divide_chunks(job_ids, 100)) 
         #
         analysed_from_zip = 0
         for i, batch in enumerate(job_batches):
             print(f"Processing batch {i} of zip {zip_number}, analyzed from zip {analysed_from_zip}")
-            results = multiprocess_parsing(batch, tmp_folder_name)
+            results = multiprocess_parsing(batch, dir_with_logs)
             new_parsed_metrics = pd.DataFrame(results, columns = JOB_LOG_METRICS_COLUMNS)
             analysed_from_zip += len(new_parsed_metrics)
+            print("new_parsed_metrics", len(new_parsed_metrics))
+            print("jobs_log_metrics", len(jobs_log_metrics))
             jobs_log_metrics = jobs_log_metrics.append(new_parsed_metrics, ignore_index=True)
-            jobs_log_metrics.to_csv(JOB_LOG_METRICS_LOCAL_PARSING_PATH)
+            print("jobs_log_metrics",len(jobs_log_metrics))
+            jobs_log_metrics.to_csv(path_to_csv_results)
         #
-        #jobs_log_metrics.to_csv(JOB_LOG_METRICS_LOCAL_PARSING_PATH)
+        jobs_log_metrics.to_csv(path_to_csv_results)
         print("Saved parsing results..")
-        zip_file_analysed(zip_number)
+        zip_file_analysed(zip_number, zip_folder)
         print("Done analysing zip file", zip_number)
         for log_id in job_ids:
-                os.remove(f"{tmp_folder_name}/{log_id}.log")
+                os.remove(f"{dir_with_logs}/{log_id}.log")
         print("Removed log files")
+    shutil.rmtree(dir_with_logs)
+    print("Removed log folder")
+
+if __name__ == "__main__":
+    x = "2"
+    #from local zip files all jobs ids
+    if x == "1":
+        jobs = import_jobs()
+        parse_logs_from_local_zips(list(jobs.id.unique), "logs/test", JOB_LOG_METRICS_LOCAL_PARSING_PATH)
+    #from local zip files only jobs ids specified in the file
+    if x == "2":
+        job_ids_to_parse = []
+        with open("job_ids_to_parse.txt", "r") as f:
+            text = f.read()
+        for job_id in text.split("\n"):
+            if job_id == "":
+                continue
+            job_ids_to_parse.append(int(job_id))
+        parse_logs_from_local_zips(job_ids_to_parse, "logs/test", JOB_LOG_METRICS_LOCAL_PARSING_PATH)
+    #from server all jobs ids
+    if x == "3":
+        jobs = import_jobs()
+        parse_logs_from_travis_server(list(jobs.id.unique), JOB_LOG_METRICS_LOCAL_PARSING_PATH) 
+    #from server only jobs ids specified in the file  
+    if x == "4":
+        job_ids_to_parse = []
+        with open("job_ids_to_parse.txt", "r") as f:
+            text = f.read()
+        for job_id in text.split("\n"):
+            if job_id == "":
+                continue
+            job_ids_to_parse.append(int(job_id))
+        parse_logs_from_travis_server(list(jobs.id.unique), JOB_LOG_METRICS_LOCAL_PARSING_PATH)
     

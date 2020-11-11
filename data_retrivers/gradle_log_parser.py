@@ -17,10 +17,10 @@ FAILURE: Build failed with an exception."""
 
 #Regex
 GRADLE_TEST_C_F_S = "(\d*) tests completed, (\d*) failed, (\d*) skipped"
-GRADLE_TEST_C_F = "(\d*) tests completed, (\d*) failed\\r\\n"
+GRADLE_TEST_C_F = "(\d*) tests completed, (\d*) failed(\\r|\\n)\\n"
 GRADLE_TEST_TOT_C_F_S = "Total tests run:(\d+), Failures: (\d+), Skips: (\d+)"
-GRADLE_TEST_TOT_RESULTS_C_F_E_S = "Results:\\r\\n\[(.*)] \\r\\n\[(.*)] Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
-TASK_OUTCOME_REGEX = "Task :(.*) (.*)\\r\\n"
+GRADLE_TEST_TOT_RESULTS_C_F_E_S = "Results:(\\r|\\n)\\n\[(.*)] (\\r|\\n)\\n\[(.*)] Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
+TASK_OUTCOME_REGEX = "Task :(.*) (.*)(\\r|\\n)\\n"
 
 def gradle_test_results(log):
     total_tests = 0
@@ -30,30 +30,30 @@ def gradle_test_results(log):
 
     allRes = re.findall(GRADLE_TEST_TOT_RESULTS_C_F_E_S, log)
     for res in allRes:
-        total_tests += int(res[2])
+        test_passed += int(res[2])
         test_failed += int(res[3]) + int(res[4])
         test_skipped += int(res[5])
-        test_passed += total_tests - test_failed - test_skipped
+        total_tests = test_passed + test_skipped + test_failed
 
     allRes = re.findall(GRADLE_TEST_C_F, log)
     for res in allRes:
-        total_tests += int(res[0])
+        test_passed += int(res[0])
         test_failed += int(res[1])
-        test_passed += total_tests - test_failed
+        total_tests += test_passed + test_failed
 
     allRes = re.findall(GRADLE_TEST_C_F_S, log)
     for res in allRes:
-        total_tests += int(res[0])
+        test_passed += int(res[0])
         test_failed += int(res[1]) 
         test_skipped += int(res[2])
-        test_passed += total_tests - test_failed - test_skipped
+        total_tests += test_passed + test_failed + test_skipped
     
     allRes = re.findall(GRADLE_TEST_TOT_C_F_S, log)
     for res in allRes:
-        total_tests += int(res[0])
+        test_passed += int(res[0])
         test_failed += int(res[1]) 
         test_skipped += int(res[2])
-        test_passed += total_tests - test_failed - test_skipped
+        total_tests += test_passed + test_failed + test_skipped
     
     return total_tests, test_passed, test_failed, test_skipped
 
