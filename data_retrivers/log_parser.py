@@ -101,7 +101,7 @@ def joblogmetric(job_id, log=None):
         passed += test_pass
         failed += fail
         skipped += skip
-    if("node scripts/test.js" in log_lower):
+    if(re.search("node\ ([a-zA-Z]*?)(\/){0,1}([a-zA-Z]*?).js", log_lower)):
         build_tool.append("node")
         tot, test_pass, fail, skip = yarn_log_parser.get_metrics(log)
         total_tests += tot
@@ -250,7 +250,7 @@ def parse_log(queue_job_ids, queue_job_results, logs_folder):
 
 def multiprocess_parsing(job_ids, logs_folder, log_progress=False):
     number_of_task = 10
-    number_of_processes = int(cpu_count())
+    number_of_processes = int(cpu_count()/2)
     queue_job_ids = Queue()
     queue_job_results = Queue()
     processes = []
@@ -343,11 +343,11 @@ def parse_logs_from_local_zips(job_ids_to_parse, zip_folder, path_to_csv_results
     print("Removed log folder")
 
 if __name__ == "__main__":
-    x = "2"
+    x = "1"
     #from local zip files all jobs ids
     if x == "1":
         jobs = import_jobs()
-        parse_logs_from_local_zips(list(jobs.id.unique), "logs/test", JOB_LOG_METRICS_LOCAL_PARSING_PATH)
+        parse_logs_from_local_zips(list(jobs.id.unique()), "logs/test", JOB_LOG_METRICS_LOCAL_PARSING_PATH)
     #from local zip files only jobs ids specified in the file
     if x == "2":
         job_ids_to_parse = []
@@ -372,4 +372,3 @@ if __name__ == "__main__":
                 continue
             job_ids_to_parse.append(int(job_id))
         parse_logs_from_travis_server(list(jobs.id.unique), JOB_LOG_METRICS_LOCAL_PARSING_PATH)
-    
