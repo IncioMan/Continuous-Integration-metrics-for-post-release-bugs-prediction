@@ -318,19 +318,19 @@ def parse_logs_from_local_zips(job_ids_to_parse, zip_folder, path_to_csv_results
         print(f"Logs to parse in this zip folder {len(job_ids)}...")
         print(f"Logs left to parse {len(set(job_ids_to_parse).difference(jobs_log_metrics.job_id))}...")
         #divide in batches of N jobs
-        job_batches = list(divide_chunks(job_ids, 100)) 
+        job_batches = list(divide_chunks(job_ids, 20)) 
         #
         analysed_from_zip = 0
         for i, batch in enumerate(job_batches):
-            print(f"Processing batch {i} of zip {zip_number}, analyzed from zip {analysed_from_zip}")
+            #print(f"Processing batch {i} of zip {zip_number}, analyzed from zip {analysed_from_zip}")
             results = multiprocess_parsing(batch, dir_with_logs)
             new_parsed_metrics = pd.DataFrame(results, columns = JOB_LOG_METRICS_COLUMNS)
             analysed_from_zip += len(new_parsed_metrics)
-            print("new_parsed_metrics", len(new_parsed_metrics))
-            print("jobs_log_metrics", len(jobs_log_metrics))
             jobs_log_metrics = jobs_log_metrics.append(new_parsed_metrics, ignore_index=True)
-            print("jobs_log_metrics",len(jobs_log_metrics))
-            jobs_log_metrics.to_csv(path_to_csv_results)
+            #print("jobs_log_metrics",len(jobs_log_metrics))
+            if(i%50==0):
+                jobs_log_metrics.to_csv(path_to_csv_results)
+                print("jobs_log_metrics", len(jobs_log_metrics))
         #
         jobs_log_metrics.to_csv(path_to_csv_results)
         print("Saved parsing results..")
