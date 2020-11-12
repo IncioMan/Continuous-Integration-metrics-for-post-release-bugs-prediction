@@ -103,11 +103,6 @@ def joblogmetric(job_id, log=None):
         skipped += skip
     if(re.search("node\ ([a-zA-Z]*?)(\/){0,1}([a-zA-Z]*?).js", log_lower)):
         build_tool.append("node")
-        tot, test_pass, fail, skip = yarn_log_parser.get_metrics(log)
-        total_tests += tot
-        passed += test_pass
-        failed += fail
-        skipped += skip
     if("jest " in log_lower):
         build_tool.append("jest")
         if(not "yarn" in build_tool):
@@ -134,7 +129,7 @@ def joblogmetric(job_id, log=None):
         skipped += skip
     elif(("welcome to gradle" in log_lower) or (":server:sonar-web:yarn" in log_lower)):
         build_tool.append( "gradle") 
-        tot, test_pass, fail, skip, failed_tasks = gradle_log_parser.get_metrics(log)
+        tot, test_pass, fail, skip, failed_tasks = gradle_log_parser.get_metrics(job_id,log)
         total_tests += tot
         passed += test_pass
         failed += fail
@@ -343,7 +338,7 @@ def parse_logs_from_local_zips(job_ids_to_parse, zip_folder, path_to_csv_results
     print("Removed log folder")
 
 if __name__ == "__main__":
-    x = "1"
+    x = "2"
     #from local zip files all jobs ids
     if x == "1":
         jobs = import_jobs()
