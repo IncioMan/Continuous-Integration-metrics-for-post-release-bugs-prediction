@@ -22,18 +22,14 @@ Tests in error:
 
 Tests run: 3, Failures: 0, Errors: 2, Skipped: 0"""
 
-#with log info
-"""[INFO] Results:
-[INFO] 
-[ERROR] Failures: 
-[ERROR]   DaoModuleTest.verify_count_of_added_components:32 expected:<[49]> but was:<[50]>
-[INFO] 
-[ERROR] Tests run: 1190, Failures: 1, Errors: 0, Skipped: 0"""
+#with log info 
+"""-------------\r\n[INFO]  T E S T S\r\n[INFO] -------------------------------------------------------\r\n[INFO] Running org.sonarqube.tests.lite.LiteSuite\r\n[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 41.92 s - in org.sonarqube.tests.lite.LiteSuite\r\n[INFO] \r\n[INFO] Results:\r\n[INFO] \r\n[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0\r\n[INFO] \r\n[INFO] \r\n[INFO] --- maven-jar-plugin:3.0.2:jar (default-jar) @ tests ---\r\n[WARNING] JAR will be empty - no content was marked for inclusion!\r\n[INFO] Building jar: /home/travis/build/SonarSource/sonarqube/tests/target/tests-7.1.0.36387.jar\r\n[INFO] \r\n[INFO] --- maven-source-plugin:3.0.1:jar-no-fork (attach-sources) @ tests ---\r\n[INFO] No sources in project. Archive not created.\r\n[INFO] ------------------------------------------------------------------------\r\n[INFO] BUILD SUCCESS\r\n[INFO] ------------------------------------------------------------------------\r\n[INFO] Total time: 54.487 s\r\n[INFO] Finished at: 2018-02-07T09:03:46Z\r\n[INFO] Final Memory:"""
 
 
 #Regex
 CASPER_TESTS = "([a-zA-z0-0]+) (\d*)\ tests\ executed(.*) (\d*)\ passed, (\d*)\ failed,\ (\d*)\ dubious,\ (\d*)\ skipped"
-MAVEN_RESULTS_C_F_E_S = "Results(\ ){,1}:(((.*?)\\n)*?)Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
+MAVEN_RESULTS_C_F_E_S = "Results(\ ){0,1}:([\s\S]*?)(\ ){0,1}Tests run: (\d*), Failures: (\d*), Errors: (\d*), Skipped: (\d*)"
+#https://regex101.com/r/dWlRr2/1
 
 def get_test_results(log):
     total_tests = 0
@@ -43,9 +39,9 @@ def get_test_results(log):
 
     allRes = re.findall(MAVEN_RESULTS_C_F_E_S, log)
     for res in allRes:
-        test_passed += int(res[4])
-        test_failed += int(res[5]) + int(res[6])
-        test_skipped += int(res[7])
+        test_passed += int(res[3])
+        test_failed += int(res[4]) + int(res[5])
+        test_skipped += int(res[6])
         total_tests = test_passed + test_skipped + test_failed
 
     allRes = re.findall(CASPER_TESTS, log)
@@ -64,7 +60,7 @@ def get_metrics(log):
 
 if __name__ == "__main__":
     #dump_job_log(728138257)
-    log = joblog(129114106)
+    log = joblog(455082254)
     #log = "processing request: The target server failed to respond\n2015.09.25 18:21:17 INFO  Retrying request\n2015.09.25 18:21:17 INFO  I/O exception (org.apache.http.NoHttpResponseException) caught when processing request: The target server failed to respond\n2015.09.25 18:21:17 INFO  Retrying request\n2015.09.25 18:21:17 INFO  I/O exception (org.apache.http.NoHttpResponseException) caught when processing request: The target server failed to respond\n2015.09.25 18:21:17 INFO  Retrying request\n2015.09.25 18:21:19 INFO  I/O exception (org.apache.http.NoHttpResponseException) caught when processing request: The target server failed to respond\n2015.09.25 18:21:19 INFO  Retrying request\n2015.09.25 18:21:19 INFO  I/O exception (org.apache.http.NoHttpResponseException) caught when processing request: The target server failed to respond\n2015.09.25 18:21:19 INFO  Retrying request\n2015.09.25 18:21:19 INFO  I/O exception (org.apache.http.NoHttpResponseException) caught when processing request: The target server failed to respond\n2015.09.25 18:21:19 INFO  Retrying request\n\nResults :\n\nTests run: 54, Failures: 0, Errors: 0, Skipped: 0\n\n[INFO] \n[INFO] --- maven-jar-plugin:2.6:jar (default-jar) @ it-tests ---\n[WARNING] JAR will be empty - no content was marked for inclusion!\n[INFO] Building jar: /home/travis/build/SonarSource/sonarqube/it/it-tests/target/it-tests-5.2-SNAPSHOT.jar\n[INFO] \n[INFO] --- maven-source-plugin:2.4:jar-no-fork (attach-sources) @ it-tests ---\n[INFO] Skipping source per configuration.\n[INFO] \n[INFO] --- animal-sniffer-maven-plugin:1.14:check (enforce-java-api-compatibility) @ it-test"
     #log = "Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.131 sec - in org.sonar.db.component.ComponentLinkDaoTest\r\n\r\nResults :\r\n\r\nTests in error: \r\n  RoleDaoTest.count_user_twice_when_user_and_group_permission:222 » Persistence ...\r\n  RoleDaoTest.count_users_with_one_permission_when_the_last_one_is_in_a_group:199 » Persistence\r\n  RoleDaoTest.count_users_with_one_specific_permission:181 » Persistence \r\n### Er...\r\n\r\nTests run: 463, Failures: 0, Errors: 3, Skipped: 23\r\n\r\n[INFO] ------------------------------------------------------------------------\r\n[INFO] Reactor Summary:\r\n[INFO] \r\n[INFO] SonarQube .......................................... SUCCESS [  4.423 s]\r\n[INFO] S"
     print(get_metrics(log))
