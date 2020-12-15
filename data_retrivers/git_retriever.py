@@ -192,8 +192,8 @@ if __name__ == "__main__":
     tagsDf.Date = pd.to_datetime(tagsDf.Date)
     tagsDf = tagsDf[tagsDf.Date > pd.to_datetime(datetime.date(2015,1,1))]
 
-    BACKWARDS_TRIES = 20
-    FORWARD_TRIES = 20
+    BACKWARDS_TRIES = 60
+    FORWARD_TRIES = 60
     csv_folder = "csv"
 
     comparisons = []
