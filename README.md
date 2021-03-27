@@ -72,7 +72,7 @@ on the CI pipeline.
 * **Dataset2:** captures more the whole
 development process functional to the release: it includes all builds on development branches that eventually were merged into one of the commits of the starting set.
 
-![](figures/machine_learning_results/performance_comparison/dataset1_vs_2.png)
+<img src="figures/machine_learning_results/performance_comparison/dataset1_vs_2.png" width="350">
 
 The comparison between the scores obtained using the two datasets throughout all the combinations of experiments did not show any significant improvement when using one method over the other.
 
