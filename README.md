@@ -59,7 +59,7 @@ The best performing models were explored and interpreted to obtain insights into
 
 **Gradle**
 
-<img src="figures/machine_learning_results/gradle/knn_binary_plot.png" width="420">
+<img src="figures/machine_learning_results/gradle/knn_binary_plot.png" width="420px">
 
 The exploration showed that the releases from the two periods (the one where *maven* was in use, and the one where *gradle* was in use) led to different sets of metrics to be selected as most informative for making predictions. In maven we can notice that bursts of failed builds and a high number of builds per PR were selected. In gradle, the number of skipped tasks (sign of little changes which leave most of the tasks untouched and therefore do not need be rerun) was selected.
 
