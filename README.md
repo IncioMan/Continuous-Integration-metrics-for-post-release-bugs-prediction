@@ -39,11 +39,11 @@ Several experiments were carried out to test different hypthesis and approaches 
 
 In this experiment we trained models to predict the number of post-release bugs using builds from periods in which the build tool and CI configuration was based on *maven* (roughly up to March 2018), *gradle* (from March 2018 to present) or all builds. The problem has been first formulated as a regression task (predicting the exact number of post-release bugs).
 
-![](figures/machine_learning_results/performance_comparison/reg_dataset1_comparison.png)
+<img src="figures/machine_learning_results/performance_comparison/reg_dataset1_comparison.png" width="420">
 
 The problem has later been converted int a binary problem (predicting whether releases would presenting more or less bugs compared to the median value).
 
-![](figures/machine_learning_results/performance_comparison/bin_dataset1_comparison.png)
+<img src="figures/machine_learning_results/performance_comparison/bin_dataset1_comparison.png" width="420">
 
 It could be observed that limiting observations (hence releases) from homogeneous periods (maven and gradle) provides higher prediction performance.
 
@@ -53,12 +53,13 @@ The best performing models were explored and interpreted to obtain insights into
 
 **Maven**
 <table><tr>
-<td> <img src="figures/machine_learning_results/maven/knn_dataset1_bin_plot.png" alt="Drawing" style="width: 250px;"/> </td>
-<td> <img src="figures/machine_learning_results/maven/dt_dataset2_bin_plot.png" alt="Drawing" style="width: 250px;"/> </td>
+<td> <img src="figures/machine_learning_results/maven/knn_dataset1_bin_plot.png" alt="Drawing" style="width: 200px;"/> </td>
+<td> <img src="figures/machine_learning_results/maven/dt_dataset2_bin_plot.png" alt="Drawing" style="width: 200px;"/> </td>
 </tr></table>
 
 **Gradle**
-![](figures/machine_learning_results/gradle/knn_binary_plot.png)
+
+<img src="figures/machine_learning_results/gradle/knn_binary_plot.png" width="420">
 
 The exploration showed that the releases from the two periods (the one where *maven* was in use, and the one where *gradle* was in use) led to different sets of metrics to be selected as most informative for making predictions. In maven we can notice that bursts of failed builds and a high number of builds per PR were selected. In gradle, the number of skipped tasks (sign of little changes which leave most of the tasks untouched and therefore do not need be rerun) was selected.
 
@@ -72,7 +73,7 @@ on the CI pipeline.
 * **Dataset2:** captures more the whole
 development process functional to the release: it includes all builds on development branches that eventually were merged into one of the commits of the starting set.
 
-<img src="figures/machine_learning_results/performance_comparison/dataset1_vs_2.png" width="350">
+<img src="figures/machine_learning_results/performance_comparison/dataset1_vs_2.png" width="600">
 
 The comparison between the scores obtained using the two datasets throughout all the combinations of experiments did not show any significant improvement when using one method over the other.
 
