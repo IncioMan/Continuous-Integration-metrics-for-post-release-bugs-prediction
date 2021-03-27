@@ -1,4 +1,4 @@
-This repository contains the code developed during the Msc. Thesis project carried out at the [Technical University of Denmark](https://www.dtu.dk/) as completion of the Master degree in the [Computer Science and Engineering](https://www.dtu.dk/english/education/msc/programmes/computer_science_and_engineering) study line.
+This repository contains the code developed during the M.Sc. Thesis project carried out at the [Technical University of Denmark](https://www.dtu.dk/) as completion of the Master degree in the [Computer Science and Engineering](https://www.dtu.dk/english/education/msc/programmes/computer_science_and_engineering) study line.
 
 ## Title
 Using Continuous Integration
