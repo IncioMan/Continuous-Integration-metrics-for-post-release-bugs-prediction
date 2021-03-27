@@ -39,11 +39,11 @@ Several experiments were carried out to test different hypthesis and approaches 
 
 In this experiment we trained models to predict the number of post-release bugs using builds from periods in which the build tool and CI configuration was based on *maven* (roughly up to March 2018), *gradle* (from March 2018 to present) or all builds. The problem has been first formulated as a regression task (predicting the exact number of post-release bugs).
 
-<img src="figures/machine_learning_results/performance_comparison/reg_dataset1_comparison.png" width="420">
+<img src="figures/machine_learning_results/performance_comparison/reg_dataset1_comparison.png" width="420px">
 
 The problem has later been converted int a binary problem (predicting whether releases would presenting more or less bugs compared to the median value).
 
-<img src="figures/machine_learning_results/performance_comparison/bin_dataset1_comparison.png" width="420">
+<img src="figures/machine_learning_results/performance_comparison/bin_dataset1_comparison.png" width="420px">
 
 It could be observed that limiting observations (hence releases) from homogeneous periods (maven and gradle) provides higher prediction performance.
 
@@ -59,7 +59,7 @@ The best performing models were explored and interpreted to obtain insights into
 
 **Gradle**
 
-<img src="figures/machine_learning_results/gradle/knn_binary_plot.png" width="420px">
+<img src="figures/machine_learning_results/gradle/knn_binary_plot.png">
 
 The exploration showed that the releases from the two periods (the one where *maven* was in use, and the one where *gradle* was in use) led to different sets of metrics to be selected as most informative for making predictions. In maven we can notice that bursts of failed builds and a high number of builds per PR were selected. In gradle, the number of skipped tasks (sign of little changes which leave most of the tasks untouched and therefore do not need be rerun) was selected.
 
