@@ -27,6 +27,12 @@ For these reasons it is important to develop solutions that can support the
 decision of whether or not the software is faulty or ready to be released, by
 exploiting data produced during its development.
 
+### Methodology
+The methodology followed was composed by the following main steps:
+![](figures/Methodology/methodology.png)
+In practice, the project selection led us to identify [Sonarqube](https://www.sonarqube.org/) (in its [open source version](https://github.com/SonarSource/sonarqube)) as case study and therefore Github, TravisCI and Jira the main data sources:
+![](figures/Methodology/dataset.png)
+
 ### Conclusions
 This research aimed to evaluate whether Continuous Integration execution data
 could represent a valid source of information to help predict the quality of a software
