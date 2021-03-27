@@ -1,9 +1,6 @@
 This repository contains the code developed during the M.Sc. Thesis project carried out at the [Technical University of Denmark](https://www.dtu.dk/) as completion of the Master degree in the [Computer Science and Engineering](https://www.dtu.dk/english/education/msc/programmes/computer_science_and_engineering) study line.
 
-## Title
-Using Continuous Integration
-metrics to predict post-release
-bugs
+## Using Continuous Integration metrics to predict post-release bugs
 
 ### Problem statement
 The popularity and adoption of software products have increased drastically in
